@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="color-scheme" content="light">
 <meta name="robots" content="noindex, nofollow">
+<!-- This page is a single file that changes several times a day while it is
+     being reviewed. A tester should never have to clear their cache to see the
+     current build -- that already cost one review round. GitHub Pages serves no
+     cache headers we control, so these meta equivalents are the only lever. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>RAKEZ Knowledge Assistant &mdash; prototype</title>
 <meta name="description" content="Clickable prototype of the RAKEZ Knowledge Assistant. A demonstration only. Answers come from a fixed knowledge base gathered on 11 September 2026 and nothing is saved.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2546,51 +2553,110 @@ p, h1, h2, h3 { margin: 0; }
    An answer to a spoken question is read aloud on its own. Nothing on screen
    said so, and nothing offered to stop it short of finding the header toggle
    — which turns the whole feature off rather than stopping this one answer.
-   A quiet strip above the composer, only while speech is playing: a three-bar
-   equaliser, one line of text, one Stop. It is the same mint tint as the
-   recording panel, because it is the same conversation in the other
-   direction. */
+   A quiet strip above the composer, only while speech is playing. It is the
+   same mint tint as the recording panel, because it is the same conversation
+   in the other direction.
+
+   REWORKED 2026-09-11 — product owner, after testing on his phone: "the audio
+   was still showing to be read out loud ... and the reading out loud didn't
+   stop." No sound had ever played.
+
+   THE THREE-BAR EQUALISER IS GONE, and this is the important part of the
+   change rather than a tidy-up. It ran `chat-eq` on a CSS keyframe from the
+   moment the bar was inserted, forever, with no connection of any kind to the
+   audio pipeline — it was a level meter reading nothing. CONTRACT.md hard rule
+   3 ("never fake the audio visualiser") is written about the dictation canvas,
+   but it is a rule about honesty, not about a particular element, and this
+   failed it in exactly the way the rule describes. In his screenshots it was
+   the single most convincing thing on the screen and it was the least true.
+
+   What replaces it says less and means it:
+     · a static speaker glyph — an icon, an assertion about nothing;
+     · a one-dimensional indeterminate SWEEP under the label, which travels at
+       a fixed rate and carries no amplitude. It is the progress-bar idiom, not
+       the meter idiom, and it is the same distinction hard rule 3 already
+       draws for the canvas's neutral sweep when the microphone has been handed
+       back;
+     · and it only moves in `.is-live`, which screens.js sets only once the
+       speech engine has confirmed that audio actually started. Before that the
+       bar is completely still and the label says "Starting to read the answer…"
+       instead of claiming it is reading. */
 .chat__speaking {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
   min-height: 40px;
-  padding: 0 12px;
+  padding: 6px 12px;
   background: var(--chat-rec-bg);
   border-radius: var(--radius);
 }
 
-.chat__speaking-eq {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 14px;
+/* Structural, not a race: the recording panel and the speaking bar can never
+   be on screen together, whatever any state or any imperative caller does.
+   screens.js declines to render the bar while state.dictating is true and
+   afterRender() clears the state to match; this is the third lock, and it
+   needs no JavaScript at all. Dictation wins, because the person is actively
+   doing something and the bar is only ever a status. */
+.chat__dock:has(.chat__voice) .chat__speaking { display: none !important; }
+
+.chat__speaking-icon {
   flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--mint);
+  opacity: 0.55;
 }
 
-.chat__speaking-eq i {
-  width: 3px;
-  height: 100%;
-  border-radius: 2px;
-  background: var(--mint);
-  transform-origin: bottom;
-  animation: chat-eq 0.9s ease-in-out infinite;
-}
-
-.chat__speaking-eq i:nth-child(2) { animation-delay: 0.15s; }
-.chat__speaking-eq i:nth-child(3) { animation-delay: 0.3s; }
-
-@keyframes chat-eq {
-  0%, 100% { transform: scaleY(0.35); }
-  50%      { transform: scaleY(1); }
+.chat__speaking-body {
+  flex: 1;
+  min-width: 0;
+  display: block;
 }
 
 .chat__speaking-label {
-  flex: 1;
+  display: block;
   min-width: 0;
   font: 400 12px/16px var(--font-cond);
   color: var(--n72);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The indeterminate track. 2px, full width, inert by default: no animation,
+   no fill, nothing moving. It is a channel waiting to be used, and until
+   audio is confirmed that is all it is. */
+.chat__speaking-track {
+  display: block;
+  height: 2px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: rgba(5, 168, 168, 0.16);
+  overflow: hidden;
+}
+
+.chat__speaking-sweep {
+  display: block;
+  width: 34%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--mint);
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+/* .is-live is set by screens.js ONLY on a confirmed onstart from the speech
+   engine. A fixed-rate travel: it says "in progress", it does not say "this
+   loud". */
+.chat__speaking.is-live .chat__speaking-sweep {
+  opacity: 1;
+  animation: chat-speak-sweep 1.6s linear infinite;
+}
+
+@keyframes chat-speak-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(340%); }
 }
 
 .chat__speaking-stop {
@@ -2887,7 +2953,7 @@ p, h1, h2, h3 { margin: 0; }
   .chat__typing span,
   .chat__voice-dot,
   .chat__send.is-busy::after,
-  .chat__speaking-eq i {
+  .chat__speaking.is-live .chat__speaking-sweep {
     animation: none;
   }
   .chat__typing span { opacity: 0.6; }
@@ -2896,10 +2962,29 @@ p, h1, h2, h3 { margin: 0; }
      is waiting on an animation here. This is belt and braces. */
   .msg__part.is-arriving { animation: none; }
   /* Both of these carry meaning, so they keep a legible static state rather
-     than disappearing: the busy ring stays a ring, the equaliser stays three
-     bars at full height. */
-  .chat__speaking-eq i { transform: scaleY(1); }
+     than disappearing: the busy ring stays a ring, and the speaking bar's
+     track fills end to end instead of travelling. It still only does so in
+     .is-live, i.e. only when audio has actually been confirmed — reduced
+     motion is not a licence to assert something we do not know. */
+  .chat__speaking.is-live .chat__speaking-sweep {
+    width: 100%;
+    transform: none;
+    opacity: 1;
+  }
   .chat__list { scroll-behavior: auto; }
+}
+
+
+/* ===== build stamp =====================================================
+   Added 2026-09-11. Quiet by design: it is there to be FOUND when someone
+   asks "which version am I on?", not to be read. Same rules as everything
+   else here -- no new token, no new idiom. */
+.disclaimer__build {
+  display: inline-block;
+  margin-left: 2px;
+  opacity: .65;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 </style>
@@ -5434,6 +5519,34 @@ VKYC.img = {
 //     waveform — the branch is on evidence from the device, not on the user
 //     agent string.
 //     THE TRANSCRIPT IS THE FEATURE; THE WAVEFORM IS DECORATION.
+//
+// (5) "The bot reading the response out verbally didn't work, it just showed
+//     reading" and "the reading out loud didn't stop". iOS, in an in-app
+//     browser (the WebView that opens when a link is tapped inside another
+//     app). No sound ever played, the "Reading the answer aloud" bar never
+//     went away, and dictation was opened on top of it so BOTH live audio
+//     states ran at once.
+//     Root cause — the same class of bug as (1) and (4), for the third time:
+//     WE WAITED FOR AN EVENT THAT NEVER ARRIVED.
+//       * WebKit requires the FIRST speechSynthesis.speak() of a page to be
+//         initiated inside a user gesture. This build reaches speak() at the
+//         end of an async chain (typing-delay setTimeout -> staged bubble
+//         reveal -> whenVoicesReady's own deferral), so the gesture is long
+//         gone. Outside a gesture WebKit refuses SILENTLY: no sound, and no
+//         onstart, no onend and no onerror.
+//       * app.js turns the bar ON optimistically BEFORE calling speak(), and
+//         the only things that turned it off were utteranceDone() (driven by
+//         onend / onerror) and an explicit stop. With no event ever arriving,
+//         _speakOutstanding never reached zero and the bar was stuck for the
+//         life of the page. That is symptom 1 AND symptom 2, exactly.
+//       * Nothing stopped speech when dictation opened, and nothing stopped
+//         speech from starting while dictation was open.
+//     Fix, in this file: prime speechSynthesis from a real gesture (which
+//     also doubles as the only honest capability probe available), arm a
+//     watchdog on every claim to the speaking bar so a claim that produces no
+//     audio is retracted instead of hanging, make speaking and dictation
+//     mutually exclusive, and say plainly what to do when the engine is
+//     genuinely inert here. See the "Speaking answers back" section.
 // ---------------------------------------------------------------------------
 
 window.VKB = window.VKB || {};
@@ -5544,9 +5657,57 @@ VKB.voice = (function () {
     "little closer, or close this and type your question instead \u2014 I'll " +
     "answer just the same.";
 
+  // NET-NEW (5). Used when this browser has no speech recogniser AT ALL — the
+  // in-app browser case, and desktop Firefox. Telling someone to speak closer
+  // when the feature does not exist here is a lie; telling them where it does
+  // work is the only useful thing we have.
+  var NOTICE_NO_ENGINE_TEXT = "This window can't listen for speech. Open the " +
+    "page in Safari or Chrome and the microphone will work \u2014 or just type " +
+    "your question here and I'll answer just the same.";
+
+  // NET-NEW (5). The read-aloud equivalent. No error code, no API name, and
+  // it ends with the thing the person can actually do.
+  var SPEECH_OFF_TEXT = "I can't read answers out loud in this window. Open " +
+    "the page in Safari or Chrome and I'll be able to talk you through it " +
+    "\u2014 the full answer is here on screen either way.";
+
   // speechSynthesis truncates long utterances on some engines. Split answers
   // at sentence boundaries into chunks no longer than this.
   var SPEAK_CHUNK_CHARS = 180;
+
+  // -- NET-NEW (5): the speaking-aloud watchdogs ----------------------------
+  //
+  // The rule these enforce: THE BAR REFLECTS AUDIO THAT IS ACTUALLY PLAYING,
+  // OR IT IS NOT SHOWN. Nothing here waits for an event to tell it that
+  // something went wrong.
+
+  // How long an utterance has to produce an 'onstart' before we stop
+  // believing it. A live engine fires it in well under 300ms; a WebKit
+  // build that refused outside a gesture fires it never. Long enough that a
+  // slow network voice is not mistaken for a refusal, short enough that
+  // nobody sits looking at a bar that means nothing.
+  var SPEAK_START_MS = 1500;
+
+  // Once it HAS started, poll for liveness — an utterance can die mid-answer
+  // without an 'onend' (backgrounded tab, engine restart, route change).
+  var SPEAK_ALIVE_TICK_MS = 400;
+  var SPEAK_ALIVE_IDLE_TICKS = 3;   // consecutive idle polls before we call it
+
+  // Absolute ceiling, for engines that can be neither evented nor polled.
+  // ~8 characters a second is far slower than any real TTS, so this can only
+  // ever fire late, never early.
+  var SPEAK_MS_PER_CHAR = 125;
+  var SPEAK_CEILING_FLOOR_MS = 8000;
+
+  // How long the silent priming utterance gets to answer with ANY event
+  // before we conclude the engine does not speak in this environment.
+  var PRIME_PROBE_MS = 2500;
+
+  // speechSynthesis.cancel() is unreliable on some WebKit builds. After a
+  // Stop we verify, and only re-cancel if the engine still reports itself
+  // busy — so a browser where cancel() works sees exactly one cancel().
+  var CANCEL_VERIFY_MS = 120;
+  var CANCEL_VERIFY_TRIES = 3;
 
   // Voices whose names are known to be feminine, per platform. Francis asked
   // for a female voice; there is no standards-blessed gender field on
@@ -6123,6 +6284,21 @@ VKB.voice = (function () {
   var _voicesBound = false;
   var _speakSeq = 0;         // supersedes a deferred utterance if a newer answer arrives
 
+  // FIXED (5) — speaking state. The bar has to be able to come back OFF from
+  // every one of these, because app.js switches it ON before speak() is even
+  // called and cannot switch it off by itself.
+  var _speakOutstanding = 0;    // utterances queued and not yet accounted for
+  var _speakClaimed = false;    // we called uiSpeaking(true) and have not undone it
+  var _speakStarted = false;    // an onstart/onend actually arrived for this answer
+  var _speakStartTimer = 0;
+  var _speakAliveTimer = 0;
+  var _speakCeilingTimer = 0;
+  var _speakIdleTicks = 0;
+  var _synthProbe = 'unknown';  // 'unknown' | 'working' | 'inert' — observed, never sniffed
+  var _primed = false;          // a gesture has already been spent on priming
+  var _primeTimer = 0;
+  var _speechNoticeShown = false;
+
   // -- Small helpers --------------------------------------------------------
 
   function noop() {}
@@ -6188,10 +6364,16 @@ VKB.voice = (function () {
       }
     });
   }
-  function uiSpeaking(on) {
+  // FIXED (5): the optional second argument is Agent K1's, and it is the
+  // difference between "we have asked for speech" and "audio is genuinely
+  // playing". screens.js takes an unconfirmed bar down by itself if nothing
+  // confirms it, which is a second, independent guard against the stuck bar —
+  // this file sends the confirmation on a real onstart so that guard knows to
+  // stand down. A screens.js that ignores the argument is unaffected.
+  function uiSpeaking(on, opts) {
     safe(function () {
       if (window.VKB && VKB.screens && typeof VKB.screens.setSpeaking === 'function') {
-        VKB.screens.setSpeaking(!!on);
+        VKB.screens.setSpeaking(!!on, opts || {});
       }
     });
   }
@@ -6252,11 +6434,84 @@ VKB.voice = (function () {
     });
   }
 
+  // NET-NEW (5) — "I can't read answers out loud in this window".
+  //
+  // Same construction rules as showNotice() above: it prefers an optional
+  // screens.js hook, otherwise builds its own element, and every DOM call is
+  // guarded so this file still runs with no document at all. It is DISMISSIBLE
+  // — an explanation the person cannot get rid of is its own dead end — and it
+  // is only ever shown when read-aloud was actually asked for and then failed.
+  var SPEECH_NOTICE_ID = 'vkb-speech-notice';
+
+  function showSpeechNotice() {
+    if (_speechNoticeShown) return;
+    _speechNoticeShown = true;
+    var viaScreens = safe(function () {
+      if (window.VKB && VKB.screens && typeof VKB.screens.setSpeechNotice === 'function') {
+        VKB.screens.setSpeechNotice(SPEECH_OFF_TEXT);
+        return true;
+      }
+      return false;
+    });
+    if (viaScreens) return;
+    safe(function () {
+      if (document.getElementById(SPEECH_NOTICE_ID)) return;
+      var host = document.querySelector('.chat__dock') ||
+                 document.querySelector('.chat__composer') ||
+                 document.querySelector('.chat') ||
+                 document.body;
+      if (!host) return;
+      var el = document.createElement('div');
+      el.id = SPEECH_NOTICE_ID;
+      el.className = 'chat__speech-notice';
+      el.setAttribute('role', 'status');
+      // Inline styles on purpose: src/chat.css belongs to Agent K1 and was
+      // being edited in parallel with this fix. This needs nothing from it.
+      el.style.cssText = 'display:flex;align-items:flex-start;gap:10px;' +
+        'margin:0 0 8px;padding:10px 12px;border-radius:12px;' +
+        'background:rgba(5,168,168,.10);font-size:13px;line-height:1.45;';
+      var p = document.createElement('p');
+      p.style.cssText = 'margin:0;flex:1 1 auto;';
+      p.textContent = SPEECH_OFF_TEXT;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Got it';
+      btn.setAttribute('aria-label', 'Dismiss');
+      btn.style.cssText = 'flex:0 0 auto;background:none;border:0;padding:2px 4px;' +
+        'font:inherit;font-weight:600;color:inherit;cursor:pointer;' +
+        'text-decoration:underline;';
+      safe(function () {
+        btn.addEventListener('click', function () { hideSpeechNotice(); });
+      });
+      el.appendChild(p);
+      el.appendChild(btn);
+      if (host.firstChild) host.insertBefore(el, host.firstChild);
+      else host.appendChild(el);
+    });
+  }
+
+  function hideSpeechNotice() {
+    if (!_speechNoticeShown) return;
+    _speechNoticeShown = false;
+    safe(function () {
+      if (window.VKB && VKB.screens && typeof VKB.screens.setSpeechNotice === 'function') {
+        VKB.screens.setSpeechNotice('');
+        return;
+      }
+      var el = document.getElementById(SPEECH_NOTICE_ID);
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    });
+  }
+
   function isAvailable() {
     return {
       dictation: !!RecognitionCtor(),
       synthesis: !!synth(),
-      meter: canMeter()
+      meter: canMeter(),
+      // FIXED (5). Additive: what this page has actually OBSERVED the speech
+      // engine do, as opposed to what the constructor's existence claims.
+      // 'unknown' until a gesture has primed it. See primeSpeech().
+      synthesisProbe: _synthProbe
     };
   }
 
@@ -6634,9 +6889,15 @@ VKB.voice = (function () {
     _stageTs = now;
     if (_stage < 3) _stage = 3;
     _recSilent = true;
-    // Which of the two true things to say. If the meter registered real
-    // speech, the words are the problem; if it never did, the microphone is.
-    if (!_noticeShown) showNotice(_audibleMs >= 600 ? NOTICE_TEXT : NOTICE_QUIET_TEXT);
+    // Which of the THREE true things to say. FIXED (5): if this browser never
+    // had a recogniser at all, neither "I can hear you" nor "speak closer" is
+    // true — the feature does not exist here, and the only useful thing we can
+    // say is where it does. Otherwise: if the meter registered real speech the
+    // words are the problem, and if it never did the microphone is.
+    if (!_noticeShown) {
+      showNotice(!_recSupported ? NOTICE_NO_ENGINE_TEXT
+        : (_audibleMs >= 600 ? NOTICE_TEXT : NOTICE_QUIET_TEXT));
+    }
   }
 
   function guardTick() {
@@ -6843,6 +7104,16 @@ VKB.voice = (function () {
   // recogniser behind, and the person sees one prompt rather than two.
   function startDictation(opts) {
     opts = opts || {};
+
+    // FIXED (5)(c) — SPEAKING AND DICTATION ARE MUTUALLY EXCLUSIVE.
+    // The product owner photographed both running at once: a live "Reading the
+    // answer aloud" bar with the recording panel and its 00:07 timer directly
+    // underneath it. On a phone they contend for the same audio hardware, and
+    // the speaker feeding the microphone is a straightforward way to make
+    // dictation produce nothing. This is enforced HERE rather than in the
+    // orchestrator so it holds however startDictation() is reached.
+    stopSpeaking();
+
     if (_dictating) cancel();
 
     _onInterim = typeof opts.onInterim === 'function' ? opts.onInterim : null;
@@ -7264,6 +7535,241 @@ VKB.voice = (function () {
     return final;
   }
 
+  // =========================================================================
+  // FIXED 2026-09-11 (5) — read-aloud that says it is reading and is not.
+  // =========================================================================
+  //
+  // Everything from here to isSpeakEnabled() obeys three rules that the old
+  // code did not:
+  //
+  //   1. PRIME FROM A GESTURE. WebKit unlocks speechSynthesis for the rest of
+  //      the page once it has been used inside a user gesture. This build only
+  //      ever reaches speak() from a timer, so without priming the very first
+  //      utterance is refused — silently, with no event of any kind. See
+  //      primeSpeech(), which is bound to the first interaction on the page.
+  //   2. THE BAR REFLECTS AUDIO THAT IS ACTUALLY PLAYING. Every claim on the
+  //      bar is armed with watchdogs. No onstart inside SPEAK_START_MS and no
+  //      sign of life from the engine -> the claim is retracted. An utterance
+  //      that starts and then dies without onend -> the liveness poll catches
+  //      it. Everything else -> the ceiling catches it. NOTHING here waits
+  //      for an event to tell it something is wrong.
+  //   3. ONE AUDIO STATE AT A TIME. speak() refuses while dictation is open;
+  //      startDictation() stops speech first.
+  //
+  // And one rule that is really about app.js: src/app.js calls
+  // VKB.screens.setSpeaking(true) BEFORE it calls speak(). It has no way to
+  // take that back. So EVERY path in here that ends in "no audio" — refusals
+  // included — has to switch the bar off itself. That is denyBar().
+
+  function unrefTimer(t) {
+    // node keeps a process alive for a pending timer and browsers have no
+    // unref(); this is what stops test/voice-test.js from hanging.
+    safe(function () { if (t && typeof t.unref === 'function') t.unref(); });
+    return t;
+  }
+
+  function clearSpeakTimers() {
+    if (_speakStartTimer) safe(function () { clearTimeout(_speakStartTimer); });
+    if (_speakAliveTimer) safe(function () { clearInterval(_speakAliveTimer); });
+    if (_speakCeilingTimer) safe(function () { clearTimeout(_speakCeilingTimer); });
+    _speakStartTimer = 0;
+    _speakAliveTimer = 0;
+    _speakCeilingTimer = 0;
+    _speakIdleTicks = 0;
+  }
+
+  // The ONE place the speaking bar is switched off, and the only thing that
+  // can undo app.js's optimistic setSpeaking(true).
+  function denyBar() {
+    clearSpeakTimers();
+    _speakOutstanding = 0;
+    _speakStarted = false;
+    _speakClaimed = false;
+    uiSpeaking(false);
+  }
+
+  // Is the engine doing anything at all? Both flags are standard; an engine
+  // that exposes neither (and the test harness is one) returns false, which is
+  // why every caller treats "not busy" as evidence only in combination with
+  // "and no event has arrived either".
+  function engineBusy(s) {
+    if (!s) return false;
+    return safe(function () { return s.speaking === true || s.pending === true; }) === true;
+  }
+
+  function speakClaim(n) {
+    _speakOutstanding = n;
+    _speakStarted = false;
+    _speakIdleTicks = 0;
+    _speakClaimed = true;
+    uiSpeaking(true);
+  }
+
+  // (2) The utterance never started. On WebKit outside a gesture this is the
+  // ONLY signal there will ever be, because the refusal is silent.
+  function armSpeakWatchdogs(seq, totalChars) {
+    clearSpeakTimers();
+    var s = synth();
+
+    _speakStartTimer = unrefTimer(setTimeout(function () {
+      _speakStartTimer = 0;
+      if (seq !== _speakSeq) return;      // superseded; not ours to judge
+      if (_speakStarted) return;
+      // A slow network voice is busy without having started. That is alive,
+      // not refused — hand it to the liveness poll instead of killing it.
+      if (engineBusy(s)) { armAlivePoll(seq); return; }
+      speechFailed(seq, 'no-start');
+    }, SPEAK_START_MS));
+
+    var ceiling = Math.max(SPEAK_CEILING_FLOOR_MS, totalChars * SPEAK_MS_PER_CHAR);
+    _speakCeilingTimer = unrefTimer(setTimeout(function () {
+      _speakCeilingTimer = 0;
+      if (seq !== _speakSeq) return;
+      speechFailed(seq, 'ceiling');
+    }, ceiling));
+  }
+
+  // (2) It started and then died without an onend.
+  function armAlivePoll(seq) {
+    if (_speakAliveTimer) return;
+    var s = synth();
+    // An engine that cannot be polled cannot be watched this way; the ceiling
+    // above is the backstop for it.
+    if (!s || typeof s.speaking !== 'boolean') return;
+    _speakIdleTicks = 0;
+    _speakAliveTimer = unrefTimer(setInterval(function () {
+      if (seq !== _speakSeq) { clearSpeakTimers(); return; }
+      if (engineBusy(s)) { _speakIdleTicks = 0; return; }
+      _speakIdleTicks += 1;
+      if (_speakIdleTicks >= SPEAK_ALIVE_IDLE_TICKS) speechFailed(seq, 'died');
+    }, SPEAK_ALIVE_TICK_MS));
+  }
+
+  // Positive proof that audio is happening. Also the moment we learn that this
+  // environment's speech engine works, which is worth more than any user-agent
+  // string could tell us.
+  function speechStarted(seq) {
+    if (seq !== _speakSeq) return;
+    if (_speakStartTimer) { safe(function () { clearTimeout(_speakStartTimer); }); _speakStartTimer = 0; }
+    _synthProbe = 'working';
+    // Idempotent, and it doubles as a heartbeat that re-arms screens.js's own
+    // poll — so send it on every boundary event, not only the first.
+    if (_speakClaimed) uiSpeaking(true, { confirmed: true });
+    if (_speakStarted) return;
+    _speakStarted = true;
+    if (_speechNoticeShown) hideSpeechNotice();
+    armAlivePoll(seq);
+  }
+
+  // No audio. Retract the claim, bump the sequence so every late event for
+  // this answer is ignored, and — when the reason is "it never started" —
+  // record that this environment is inert and tell the person what to do.
+  function speechFailed(seq, why) {
+    if (seq !== _speakSeq) return;
+    _speakSeq += 1;
+    denyBar();
+    var s = synth();
+    if (s) safe(function () { s.cancel(); });
+    if (why === 'no-start') {
+      _synthProbe = 'inert';
+      showSpeechNotice();
+      rearmPrime();
+    }
+  }
+
+  // -- (1) Priming ----------------------------------------------------------
+  //
+  // A silent utterance, spoken from inside a real user gesture, unlocks
+  // speechSynthesis for the rest of the page on WebKit. Everything this app
+  // reads aloud is queued from a timer, so without this the first — and
+  // therefore every — answer is refused.
+  //
+  // It doubles as the ONLY honest capability probe available. An engine that
+  // answers the silent utterance with onstart, onend or even onerror is alive.
+  // One that answers with nothing at all, while reporting neither `speaking`
+  // nor `pending`, is inert here. That is observed behaviour from THIS device,
+  // not a guess from the user agent string — no UA sniffing anywhere in this
+  // file, deliberately, because the same in-app browser reports itself as
+  // Safari and a future one will report something nobody has written a regex
+  // for yet.
+  function primeSpeech() {
+    if (_primed) return _synthProbe !== 'inert';
+    var s = synth();
+    if (!s) { _primed = true; _synthProbe = 'inert'; return false; }
+    _primed = true;
+
+    // Free work while we are inside the gesture: warm the voice list (iOS and
+    // Chrome both return [] from the first getVoices()) and un-pause a queue
+    // that iOS can leave paused after the page returns from the background —
+    // a paused queue swallows everything put into it afterwards.
+    safe(function () { s.getVoices(); });
+    bindVoicesChanged();
+    safe(function () { if (s.paused && typeof s.resume === 'function') s.resume(); });
+
+    var u = safe(function () {
+      var utt = new window.SpeechSynthesisUtterance(' ');
+      utt.volume = 0;
+      utt.rate = 1;
+      utt.lang = 'en-GB';
+      return utt;
+    });
+    if (!u) { _synthProbe = 'inert'; return false; }
+
+    var answered = false;
+    function heard() {
+      if (answered) return;
+      answered = true;
+      if (_primeTimer) { safe(function () { clearTimeout(_primeTimer); }); _primeTimer = 0; }
+      _synthProbe = 'working';
+      if (_speechNoticeShown) hideSpeechNotice();
+    }
+    safe(function () { u.onstart = heard; u.onend = heard; u.onerror = heard; });
+    safe(function () { s.speak(u); });
+
+    _primeTimer = unrefTimer(setTimeout(function () {
+      _primeTimer = 0;
+      if (answered) return;
+      if (engineBusy(s)) { _synthProbe = 'working'; return; }
+      _synthProbe = 'inert';
+    }, PRIME_PROBE_MS));
+    return true;
+  }
+
+  // Bound in the CAPTURE phase on document so it runs inside the gesture and
+  // ahead of app.js's own click handlers, whatever the person touches first —
+  // the speaker toggle, the send button, a chip, the microphone. voice.js does
+  // not depend on app.js remembering to call prime(); prime() is exported as
+  // well, so app.js CAN call it explicitly, but this works without it.
+  // An "inert" verdict is a judgement about an environment, and environments
+  // change under a running page (iOS restores a suspended engine when the app
+  // comes back to the foreground). So every time we act on that verdict we
+  // also put the priming listener back: the person's NEXT tap re-probes, and
+  // if the engine has woken up the answer after that one is read aloud
+  // normally. The cost of being wrong is one silent utterance; the cost of
+  // latching the verdict forever would be read-aloud that never comes back.
+  function rearmPrime() {
+    _primed = false;
+    bindPrimeGesture();
+  }
+
+  function bindPrimeGesture() {
+    if (typeof document === 'undefined' || !document.addEventListener) return;
+    var types = ['pointerdown', 'touchend', 'mousedown', 'keydown'];
+    function onGesture() {
+      primeSpeech();
+      for (var i = 0; i < types.length; i++) {
+        safe(function (t) {
+          return function () { document.removeEventListener(t, onGesture, true); };
+        }(types[i]));
+      }
+    }
+    for (var j = 0; j < types.length; j++) {
+      safe(function (t) {
+        return function () { document.addEventListener(t, onGesture, true); };
+      }(types[j]));
+    }
+  }
+
   // speak(text, opts) -> boolean (was it queued?)
   //
   // opts.force === true speaks regardless of the speaker toggle. That is the
@@ -7273,10 +7779,33 @@ VKB.voice = (function () {
     opts = opts || {};
     var force = opts.force === true;
     if (!_speakEnabled && !force) return false; // hard gate for typed turns
+
+    // FIXED (5)(c). Never a second live audio state. The answer stays on
+    // screen; it is simply not read over the top of someone talking.
+    if (_dictating) { denyBar(); return false; }
+
     var s = synth();
-    if (!s) return false;
+    if (!s) { denyBar(); showSpeechNotice(); return false; }   // (d) never a dead end
+
+    // FIXED (5)(d). The engine has already demonstrated on this page that it
+    // produces no sound and no events. Lighting a bar that will never mean
+    // anything is the bug being fixed; say what to do instead.
+    if (_synthProbe === 'inert') {
+      denyBar();
+      showSpeechNotice();
+      rearmPrime();
+      return false;
+    }
+
     var body = speakable(text);
-    if (!body) return false;
+    if (!body) { denyBar(); return false; }
+
+    // A previous answer's claim must not survive into this one, even if its
+    // events never arrived. The bar itself is left alone — we are about to
+    // claim it again — but the bookkeeping behind it is reset.
+    clearSpeakTimers();
+    _speakOutstanding = 0;
+    _speakStarted = false;
 
     // Cancel anything in flight, always, before queuing the new answer.
     safe(function () { s.cancel(); });
@@ -7288,23 +7817,31 @@ VKB.voice = (function () {
     var seq = _speakSeq;
 
     whenVoicesReady(function () {
-      // Re-check: the person may have toggled speech off, stopped it, or a
-      // newer answer may have landed while we waited for the voice list.
-      // A forced utterance still yields to stopSpeaking() and to a newer
-      // answer — it just does not need the toggle to start.
+      // Re-check: the person may have toggled speech off, stopped it, opened
+      // dictation, or a newer answer may have landed while we waited for the
+      // voice list. A forced utterance still yields to stopSpeaking(), to
+      // dictation and to a newer answer — it just does not need the toggle.
       if (seq !== _speakSeq) return;
       if (!force && !_speakEnabled) return;
+      if (_dictating) { denyBar(); return; }
       var voice = resolveVoice();
       var pieces = chunk(body);
       var queued = 0;
+      var chars = 0;
       for (var i = 0; i < pieces.length; i++) {
         var u = makeUtterance(pieces[i], voice);
         if (!u) continue;
         trackUtterance(u, seq);
         queued += 1;
+        chars += pieces[i].length;
         safe(function (utt) { return function () { s.speak(utt); }; }(u));
       }
-      if (queued) { _speakOutstanding = queued; uiSpeaking(true); }
+      if (queued) {
+        speakClaim(queued);
+        armSpeakWatchdogs(seq, chars);    // (2) the bar can never stick again
+      } else {
+        denyBar();
+      }
     });
     return true;
   }
@@ -7312,19 +7849,34 @@ VKB.voice = (function () {
   // The speaking bar has to switch itself off when the answer finishes, not
   // when we queued it. Utterances are counted out; the seq token means a
   // superseded answer's late onend cannot switch off the bar for the new one.
-  var _speakOutstanding = 0;
-
   function trackUtterance(utt, seq) {
     safe(function () {
-      utt.onend = function () { utteranceDone(seq); };
-      utt.onerror = function () { utteranceDone(seq); };
+      utt.onstart = function () { speechStarted(seq); };
+      // An onend is also proof that audio happened, on engines that skip
+      // onstart entirely.
+      utt.onend = function () { speechStarted(seq); utteranceDone(seq); };
+      utt.onerror = function () { utteranceError(seq); };
     });
   }
 
   function utteranceDone(seq) {
     if (seq !== _speakSeq) return;
     _speakOutstanding -= 1;
-    if (_speakOutstanding <= 0) { _speakOutstanding = 0; uiSpeaking(false); }
+    _speakIdleTicks = 0;
+    if (_speakOutstanding <= 0) denyBar();
+  }
+
+  // An error on every chunk with nothing ever having started is the same
+  // outcome as silence, and deserves the same honest message. Errors caused by
+  // our OWN cancel() never reach here: stopSpeaking() and speak() bump
+  // _speakSeq first, so the guard above drops them.
+  function utteranceError(seq) {
+    if (seq !== _speakSeq) return;
+    _speakOutstanding -= 1;
+    if (_speakOutstanding > 0) return;
+    var nothingPlayed = !_speakStarted;
+    denyBar();
+    if (nothingPlayed) { _synthProbe = 'inert'; showSpeechNotice(); rearmPrime(); }
   }
 
   function makeUtterance(part, voice) {
@@ -7346,15 +7898,34 @@ VKB.voice = (function () {
     });
   }
 
+  // A Stop link that does not stop is worse than no Stop link, so this does
+  // three things rather than one: it disarms anything still waiting on the
+  // voice list (the seq bump), it puts the UI back to the truth immediately
+  // and unconditionally (denyBar, which does not depend on any event), and it
+  // VERIFIES that the engine actually stopped.
   function stopSpeaking() {
-    // Bump first: this also disarms any utterance still waiting on the voice
-    // list, which s.cancel() on its own could not reach.
     _speakSeq += 1;
-    _speakOutstanding = 0;
-    uiSpeaking(false);
+    denyBar();
     var s = synth();
     if (!s) return;
+    // cancel() is a no-op against a paused queue on some WebKit builds, and
+    // iOS pauses the queue on backgrounding. Resume, then cancel.
+    safe(function () { if (s.paused && typeof s.resume === 'function') s.resume(); });
     safe(function () { s.cancel(); });
+    verifyCancelled(s, CANCEL_VERIFY_TRIES);
+  }
+
+  // Only re-cancels if the engine still reports itself busy, so a browser
+  // where cancel() works sees exactly one cancel() and an engine that exposes
+  // no state at all is left alone.
+  function verifyCancelled(s, tries) {
+    if (tries <= 0) return;
+    unrefTimer(setTimeout(function () {
+      if (!engineBusy(s)) return;
+      safe(function () { if (s.paused && typeof s.resume === 'function') s.resume(); });
+      safe(function () { s.cancel(); });
+      verifyCancelled(s, tries - 1);
+    }, CANCEL_VERIFY_MS));
   }
 
   function isSpeaking() { return _speakOutstanding > 0; }
@@ -7394,6 +7965,11 @@ VKB.voice = (function () {
 
   bindLifecycle();
   bindVoicesChanged();
+  // FIXED (5)(a). Arm the priming listener now; it speaks NOTHING until a real
+  // user gesture arrives, which is the whole point — a silent utterance at
+  // module load would be refused by exactly the engines this is meant to
+  // unlock, and would be an unrequested noise on the ones it would not.
+  bindPrimeGesture();
   // Warm the list early so the FIRST spoken answer already has the right
   // voice rather than the platform default.
   safe(resolveVoice);
@@ -7430,6 +8006,14 @@ VKB.voice = (function () {
     setSpeakEnabled: setSpeakEnabled,
     isSpeakEnabled: isSpeakEnabled,
 
+    // FIXED (5)(a), additive. Unlocks speechSynthesis for the rest of the page
+    // and probes whether it works at all. MUST be called from inside a user
+    // gesture (a click/tap handler) or it does nothing useful. voice.js already
+    // binds this to the first interaction on the page by itself, so app.js does
+    // NOT have to call it — but calling it from the speaker toggle's handler
+    // makes the intent explicit and costs nothing. Safe to call repeatedly.
+    prime: primeSpeech,
+
     // NET-NEW, additive. The RAKEZ-domain correction pass, exposed so the
     // orchestrator can run it over a TYPED question too (the same mishearings
     // turn up as typos) and so the UI can show what was changed.
@@ -7442,6 +8026,31 @@ VKB.voice = (function () {
     // "type instead" hint. Additive only; nothing depends on them.
     _internals: {
       speakable: speakable,
+
+      // FIXED (5). Read-only view of the read-aloud watchdogs, so the browser
+      // probe (and anyone debugging on a real phone) can see what this device
+      // actually did. Additive; nothing depends on them.
+      SPEAK_START_MS: SPEAK_START_MS,
+      SPEAK_ALIVE_TICK_MS: SPEAK_ALIVE_TICK_MS,
+      SPEAK_ALIVE_IDLE_TICKS: SPEAK_ALIVE_IDLE_TICKS,
+      PRIME_PROBE_MS: PRIME_PROBE_MS,
+      SPEECH_OFF_TEXT: SPEECH_OFF_TEXT,
+      NOTICE_NO_ENGINE_TEXT: NOTICE_NO_ENGINE_TEXT,
+      primeSpeech: primeSpeech,
+      speechDiagnostics: function () {
+        return {
+          probe: _synthProbe,
+          primed: _primed,
+          claimed: _speakClaimed,
+          started: _speakStarted,
+          outstanding: _speakOutstanding,
+          seq: _speakSeq,
+          noticeShown: _speechNoticeShown,
+          dictating: _dictating,
+          enabled: _speakEnabled
+        };
+      },
+
       scoreVoice: scoreVoice,
       resolveVoice: resolveVoice,
       teardown: teardown,
@@ -7627,8 +8236,13 @@ VKB.render = VKB.render || {};
   // hard rule 4 (demo disclaimer in the footer).
   VKB.copy.noteVaries      = 'This one varies — the official source gives a range or says it depends.';
   VKB.copy.noteUnconfirmed = 'Not confirmed on an official RAKEZ source. Check with RAKEZ before relying on it.';
+  // The build stamp is here so anyone testing can tell at a glance WHICH build
+  // they are looking at. The owner spent a round on a bug that was already
+  // fixed, because his phone was serving him a cached copy and nothing on the
+  // page said so. build.py replaces the placeholder at build time.
   VKB.copy.disclaimer      = '<b>Demonstration only.</b> Answers come from a fixed knowledge base ' +
-                             'gathered on 11 Sep 2026, not from a live search. Nothing you type is saved.';
+                             'gathered on 11 Sep 2026, not from a live search. Nothing you type is saved. ' +
+                             '<span class="disclaimer__build">Build 11 Sep 2026, 18:49</span>';
   VKB.copy.voiceHint       = 'Listening — speak now.';
 
   // NET-NEW copy added 2026-09-11 in response to the UX audit. No Figma
@@ -7651,7 +8265,14 @@ VKB.render = VKB.render || {};
   VKB.copy.voiceWaiting    = 'Your words appear here as you speak.';
   VKB.copy.voiceUse        = 'Use this text';
   VKB.copy.voiceCancel     = 'Cancel dictation';
+  // Two labels, not one. The bar used to assert "Reading the answer aloud"
+  // from the instant we ASKED the browser to speak — which on iOS is a lie,
+  // because Safari refuses speechSynthesis.speak() outside a user gesture and
+  // then fires no event at all. The claim is only made once the speech engine
+  // has confirmed that audio actually started; until then the bar says what is
+  // true, which is that we have asked.
   VKB.copy.speaking        = 'Reading the answer aloud';
+  VKB.copy.speakingWaiting = 'Starting to read the answer\u2026';
   VKB.copy.speakingStop    = 'Stop';
   VKB.copy.busyHint        = 'Finding the answer…';
 
@@ -8039,19 +8660,56 @@ VKB.render = VKB.render || {};
     return m.reveal >= partsOf(m).length;
   };
 
-  // Long enough to be believed, short enough that a demo does not drag: a
-  // floor of 420ms, a ceiling of 950ms, and in between it scales with how much
-  // is about to land. A two-part answer adds well under a second; the longest
-  // three-part answer in the knowledge base adds ~1.7s. On top of the existing
-  // 550–900ms think-time before the first part, that is the same overall beat
-  // as a Copilot reply of the same length.
+  // -------------------------------------------------------------------
+  // PACING CONSTANTS — from the product owner, 2026-09-11, after testing the
+  // prototype on his own phone:
+  //
+  //   "when multiple responses are been sent by the bot, it could give a
+  //    3 seconds break between so it feels like it's typing or thinking
+  //    before responding."
+  //
+  // The previous numbers (a 420ms floor, a 950ms ceiling) read as a stutter
+  // rather than as thought. These six numbers are the whole rhythm of the
+  // product: change them here and nothing else needs editing. If it plays
+  // slow in the room, drop PACE_BASE_MS and PACE_TOTAL_MAX_MS together.
+  //
+  // The shape is: a base pause, plus time proportional to how much is about
+  // to land, clamped at both ends — a one-line second bubble does not need
+  // the same pause as a fact card. The LAST gap of a three-part answer is
+  // shortened by PACE_LAST_FACTOR so the answer lands rather than trails off;
+  // a two-part answer has only one gap and that gap IS the beat he asked for,
+  // so it is never shortened. PACE_TOTAL_MAX_MS is the demo safety net: no
+  // answer, however long, takes more than that to finish arriving.
+  // -------------------------------------------------------------------
+  var PACE_BASE_MS       = 2050;   // the thinking pause before anything is measured
+  var PACE_PER_CHAR_MS   = 3.2;    // ...plus this much per character of what is arriving
+  var PACE_MIN_MS        = 2200;   // even a one-line bubble gets a readable beat
+  var PACE_MAX_MS        = 3400;   // ...and the longest fact card never exceeds this
+  var PACE_LAST_FACTOR   = 0.72;   // the final gap of a 3-part answer, so it lands
+  var PACE_TOTAL_MAX_MS  = 5600;   // hard ceiling on the sum of the gaps in one turn
+
   VKB.screens.pacing = function (m) {
     var segs = partsOf(m);
     if (segs.length < 2 || reducedMotion()) return [];
-    var out = [];
-    for (var i = 1; i < segs.length; i++) {
-      out.push(Math.max(420, Math.min(950, 320 + Math.round(segLen(segs[i]) * 1.9))));
+
+    var out = [], i, sum = 0;
+    for (i = 1; i < segs.length; i++) {
+      var g = PACE_BASE_MS + segLen(segs[i]) * PACE_PER_CHAR_MS;
+      g = Math.max(PACE_MIN_MS, Math.min(PACE_MAX_MS, g));
+      out.push(g);
     }
+
+    // Only a turn with more than one gap has a "last" gap to soften. With a
+    // single gap, shortening it would quietly undo the thing he asked for.
+    if (out.length > 1) out[out.length - 1] = out[out.length - 1] * PACE_LAST_FACTOR;
+
+    for (i = 0; i < out.length; i++) sum += out[i];
+    if (sum > PACE_TOTAL_MAX_MS) {
+      var k = PACE_TOTAL_MAX_MS / sum;
+      for (i = 0; i < out.length; i++) out[i] = out[i] * k;
+    }
+
+    for (i = 0; i < out.length; i++) out[i] = Math.round(out[i]);
     return out;
   };
 
@@ -8214,11 +8872,45 @@ VKB.render = VKB.render || {};
   // VKB.engine.personas as its options, under the Figma lead line
   // "What would you like to know about?" (586:1948).
   // =======================================================================
-  function speakingBarHtml() {
+  // ---- the speaking bar ------------------------------------------------
+  //
+  // REWORKED 2026-09-11 on the product owner's feedback: "the audio was still
+  // showing to be read out loud and I could still try to respond via audio but
+  // it didn't work and the reading out loud didn't stop." His screenshots show
+  // this bar — animated level meter and all — still up a minute later with no
+  // sound ever having played, and the dictation panel open directly underneath
+  // it, so two controls were claiming the microphone at once.
+  //
+  // Three things changed here, and one of them is a hard-rule call:
+  //
+  //  1. The three-bar equaliser is GONE. It animated on a CSS keyframe from
+  //     the moment the bar appeared, regardless of whether one sample of audio
+  //     had ever been produced. That is a level meter that is not reading a
+  //     level. CONTRACT.md hard rule 3 — "never fake the audio visualiser" —
+  //     is written about the dictation canvas, but the standard is the same
+  //     and this failed it. It is replaced by a static speaker glyph plus a
+  //     neutral indeterminate sweep, which claims only "something is in
+  //     progress" and never claims an amplitude. That is the same distinction
+  //     hard rule 3 already draws for the canvas's neutral sweep.
+  //  2. The sweep only moves in the `is-live` state, i.e. only once the speech
+  //     engine has confirmed that audio started. Unconfirmed, the bar is
+  //     completely still and says so in words.
+  //  3. The label is state-driven, not a constant.
+  // ----------------------------------------------------------------------
+  function speakingBarHtml(state) {
+    var live = !!(state && state.speakingConfirmed);
     return (
-      '<div class="chat__speaking" role="status">' +
-        '<span class="chat__speaking-eq" aria-hidden="true"><i></i><i></i><i></i></span>' +
-        '<span class="chat__speaking-label">' + esc(VKB.copy.speaking) + '</span>' +
+      '<div class="chat__speaking' + (live ? ' is-live' : '') + '" role="status">' +
+        '<span class="chat__speaking-icon" aria-hidden="true">' + ic('speakerOn') + '</span>' +
+        '<span class="chat__speaking-body">' +
+          '<span class="chat__speaking-label">' +
+            esc(live ? VKB.copy.speaking : VKB.copy.speakingWaiting) + '</span>' +
+          // Not a meter. A one-dimensional indeterminate track, the same idiom
+          // as a progress bar with no known length. It carries no amplitude
+          // and it is inert until audio is confirmed.
+          '<span class="chat__speaking-track" aria-hidden="true">' +
+            '<i class="chat__speaking-sweep"></i></span>' +
+        '</span>' +
         '<button type="button" class="chat__speaking-stop" data-act="stopSpeaking">' +
           esc(VKB.copy.speakingStop) + '</button>' +
       '</div>'
@@ -8345,7 +9037,24 @@ VKB.render = VKB.render || {};
     // Rendered only while it is true, never parked behind a `hidden`
     // attribute — that is the shape of UX AUDIT finding 11 and it is not worth
     // repeating for a control that is invisible 95% of the time.
-    var speakingBar = state.speaking ? speakingBarHtml() : '';
+    // STRUCTURAL EXCLUSION, not a race. Three conditions, all of them read
+    // from state and none of them from the DOM:
+    //
+    //   * `dictating` wins outright. The person is actively doing something
+    //     with the microphone; a bar claiming the speaker is the other half of
+    //     the double-claim he saw, and it is never rendered alongside the
+    //     recording panel. chat.css repeats this as a :has() rule so it holds
+    //     even if a future caller inserts a bar imperatively.
+    //   * an UNCONFIRMED bar does not survive a new question. The moment
+    //     `awaiting` goes true a fresh turn is in flight, and a bar that has
+    //     never had audio behind it has nothing left to be about.
+    //   * a CONFIRMED bar does survive it, because audio genuinely is playing
+    //     and taking the Stop control away mid-sentence would be worse.
+    //     afterRender() below is what turns that into state rather than
+    //     leaving it as a render-time trick, so a hidden bar cannot pop back.
+    var speakingBar = (state.speaking && !dictating &&
+                       (state.speakingConfirmed || !busy))
+      ? speakingBarHtml(state) : '';
 
     // ---- header ---------------------------------------------------------
     // 586:1840 gives the header ONE 40px button on the right: an X. Two are
@@ -8697,6 +9406,26 @@ VKB.render = VKB.render || {};
       dlgInvoker = null;
     }
 
+    // ---- the speaking bar can never outlive its reason -----------------
+    //
+    // chat() above declines to RENDER the bar when dictation is open, or when
+    // a new question is in flight behind an unconfirmed one. That alone would
+    // be a render-time trick: state.speaking would still be true and the bar
+    // would pop back on the next render that happened to satisfy the gate.
+    // This turns the same two conditions into state, once, and takes the
+    // speech engine down with it. After this line, "the bar is not on screen"
+    // and "state says nothing is speaking" cannot disagree.
+    if (state.speaking &&
+        (state.dictating || (!state.speakingConfirmed && state.awaiting))) {
+      try { if (VKB.voice && VKB.voice.stopSpeaking) VKB.voice.stopSpeaking(); } catch (e) {}
+      VKB.screens.setSpeaking(false);
+      state.speaking = false;
+      state.speakingConfirmed = false;
+    }
+    // Belt and braces for the same invariant from the other direction: a bar
+    // left in the DOM by an imperative caller while state says otherwise.
+    if (!state.speaking) removeSpeakingBars();
+
     VKB.screens.syncComposer(state);
 
     if (!list) return;
@@ -8865,16 +9594,244 @@ VKB.render = VKB.render || {};
   // there has to be a quiet, visible sign that it is happening and one
   // obvious way to stop it. Toggled here rather than through a rerender so
   // the page does not rebuild in the middle of a sentence.
-  VKB.screens.setSpeaking = function (on) {
-    if (VKB.state) VKB.state.speaking = !!on;
+  //
+  // REWORKED 2026-09-11 — product owner's feedback, quoted in full above
+  // speakingBarHtml(). The old version was a one-way latch: `state.speaking`
+  // went true the instant app.js ASKED for speech, and only an event from the
+  // speech engine could ever put it back. On iOS that event never comes —
+  // Safari refuses speechSynthesis.speak() outside a user gesture and fires
+  // neither onstart nor onend nor onerror — so the bar stayed up forever,
+  // asserting audio that had never existed, with nothing else in the system
+  // able to contradict it.
+  //
+  // THE RULE THIS NOW OBEYS: the bar is never the only thing asserting that
+  // audio is playing. Its existence has to keep being corroborated, or it
+  // goes. Three independent things can clear it and none of them needs an
+  // event from the speech engine:
+  //
+  //   * the confirmation watchdog — asked for speech and nothing confirmed it
+  //     within SPEAK_CONFIRM_MS, so the claim was never true: drop it;
+  //   * the liveness poll — every SPEAK_POLL_MS a confirmed bar re-asks the
+  //     engine whether it is still speaking, so a missing `onend` costs at
+  //     most one poll instead of the rest of the session;
+  //   * the ceiling — SPEAK_MAX_MS, past which nothing keeps the bar, however
+  //     confident everyone involved is.
+  //
+  // WHERE THE CORROBORATION COMES FROM, in order. Two independent sources,
+  // and this file needs neither of them to be correct:
+  //
+  //   1. VKB.voice.isSpeaking() -> boolean, if voice.js (Agent K3) provides it.
+  //      "Is audio playing right now?" It is the best answer because it is the
+  //      module that owns the utterance. Optional: absent or throwing is read
+  //      as "no opinion", never as yes.
+  //   2. window.speechSynthesis.speaking / .pending — the PLATFORM's own answer,
+  //      which no agent on this build owns and no agent can get wrong. This is
+  //      what makes the fix independent of the voice.js half: on iOS, where
+  //      Safari refuses speak() outside a user gesture, `speaking` never goes
+  //      true and the bar removes itself; on a browser where speech genuinely
+  //      works, `speaking` is true and the bar both confirms itself and stays
+  //      up with its Stop control for as long as there is audio — even if
+  //      voice.js never sends a single event.
+  //
+  // WHAT voice.js SHOULD CALL ON THIS FILE (all optional, all additive):
+  //
+  //   VKB.screens.setSpeaking(true,  { confirmed: true })  on a real onstart /
+  //                              on any boundary event — it is idempotent and
+  //                              doubles as a heartbeat that re-arms the poll.
+  //   VKB.screens.setSpeaking(false)                        on end, on error,
+  //                              on cancel, and on a refused speak().
+  //   VKB.voice.stopSpeaking()  is called from here in exactly one case: when
+  //                              dictation opens while speech is being claimed,
+  //                              which is the double-microphone bug he reported.
+  //
+  // A voice.js that calls none of these still behaves correctly.
+  var SPEAK_CONFIRM_MS = 2500;    // no audible audio by now -> the bar is lying
+  var SPEAK_PROBE_MS   = 250;     // how often an unconfirmed bar looks for audio
+  var SPEAK_POLL_MS    = 1500;    // how often a confirmed bar re-checks it is still on
+  var SPEAK_MAX_MS     = 90000;   // nothing keeps the bar longer than this, ever
+
+  // Two consecutive "no audio" polls, not one, before a CONFIRMED bar is taken
+  // down. A long answer is commonly spoken as several queued utterances (it is
+  // the usual way round Chrome's ~15s cutoff) and `speechSynthesis.speaking`
+  // can read false for an instant in the join. One poll of tolerance costs
+  // SPEAK_POLL_MS of a stale bar in the worst case and saves the Stop control
+  // from flickering out mid-answer.
+  var SPEAK_MISS_LIMIT = 2;
+
+  var speakWatch   = null;
+  var speakStarted = 0;
+  var speakMisses  = 0;
+
+  function clearSpeakWatch() {
+    if (speakWatch) { window.clearTimeout(speakWatch); speakWatch = null; }
+  }
+
+  // TWO QUESTIONS, NOT ONE, and they need different sources.
+  //
+  //   "Is audio AUDIBLE?" decides whether the bar may CLAIM to be reading and
+  //   move its sweep. Only `speechSynthesis.speaking` answers that: it is the
+  //   platform's own word for "an utterance is being spoken right now", and
+  //   `pending` is deliberately not accepted, because queued is not audible.
+  //   voice.js's isSpeaking() is NOT used here: a module's "I have an
+  //   outstanding request" is exactly the optimism this whole fix exists to
+  //   stop believing. The other confirmation route is voice.js calling
+  //   setSpeaking(true, {confirmed:true}) from a real `onstart`, which is an
+  //   event, not a hope.
+  //
+  //   "Is it still going?" only has to keep an ALREADY-confirmed bar alive, so
+  //   it takes the widest reading — the platform's speaking or pending, or
+  //   voice.js's own answer. Being generous here costs one stale poll; being
+  //   mean costs someone the Stop control mid-sentence.
+  //
+  // Both return true / false / null, where null means "nothing here can say".
+  function audibleNow() {
+    try {
+      var ss = window.speechSynthesis;
+      if (ss && typeof ss.speaking === 'boolean') return ss.speaking === true;
+    } catch (e) { /* no opinion */ }
+    return null;
+  }
+
+  function stillSpeaking() {
+    var plat = null;
+    try {
+      var ss = window.speechSynthesis;
+      if (ss && typeof ss.speaking === 'boolean') plat = !!(ss.speaking || ss.pending);
+    } catch (e) { /* no opinion */ }
+    if (plat === true) return true;
+    try {
+      if (VKB.voice && typeof VKB.voice.isSpeaking === 'function') {
+        if (VKB.voice.isSpeaking()) return true;
+      }
+    } catch (e2) { /* no opinion */ }
+    return plat;   // false, or null when the platform could not say either
+  }
+
+  function removeSpeakingBars() {
+    var bars = document.querySelectorAll('.chat__speaking');
+    for (var i = 0; i < bars.length; i++) {
+      if (bars[i].parentNode) bars[i].parentNode.removeChild(bars[i]);
+    }
+  }
+
+  function armSpeakWatch() {
+    clearSpeakWatch();
+    var confirmed = !!(VKB.state && VKB.state.speakingConfirmed);
+    speakWatch = window.setTimeout(function () {
+      speakWatch = null;
+      var st = VKB.state || {};
+      if (!st.speaking) return;
+      var age  = now() - speakStarted;
+      var live = st.speakingConfirmed ? stillSpeaking() : audibleNow();
+
+      if (age >= SPEAK_MAX_MS) { VKB.screens.setSpeaking(false); return; }
+      if (live === true) {
+        speakMisses = 0;
+        VKB.screens.setSpeaking(true, { confirmed: true });
+        return;
+      }
+
+      if (!st.speakingConfirmed) {
+        // Still inside the grace window: `false` here only means "not yet",
+        // because a browser can take a moment to start. Past the window,
+        // nothing has ever corroborated the claim, so the claim goes.
+        if (age < SPEAK_CONFIRM_MS) { armSpeakWatch(); return; }
+        VKB.screens.setSpeaking(false);
+        return;
+      }
+
+      // Confirmed, and the source now says no: the audio has finished, however
+      // quiet the engine was about it. Given one poll of tolerance first.
+      if (live === false) {
+        speakMisses += 1;
+        if (speakMisses >= SPEAK_MISS_LIMIT) { VKB.screens.setSpeaking(false); return; }
+      }
+      armSpeakWatch();   // live === null, or one tolerated miss: keep polling
+    }, confirmed ? SPEAK_POLL_MS : SPEAK_PROBE_MS);
+  }
+
+  function now() {
+    return (window.Date && Date.now) ? Date.now() : new Date().getTime();
+  }
+
+  // setSpeaking(on)                      -> "we have asked for speech"
+  // setSpeaking(true, {confirmed:true})  -> "audio is genuinely playing"
+  // setSpeaking(false)                   -> off, from anywhere, always
+  //
+  // Returns the resulting boolean so a caller can see that dictation vetoed it.
+  VKB.screens.setSpeaking = function (on, opts) {
+    opts = opts || {};
+    var st = VKB.state || (VKB.state = {});
+    on = !!on;
+
+    // DICTATION WINS. The person is holding the microphone; nothing gets to
+    // claim the speaker over the top of that, whatever the state says.
+    if (on && st.dictating) {
+      on = false;
+      try { if (VKB.voice && VKB.voice.stopSpeaking) VKB.voice.stopSpeaking(); } catch (e) {}
+    }
+
+    if (!on) {
+      st.speaking = false;
+      st.speakingConfirmed = false;
+      speakMisses = 0;
+      clearSpeakWatch();
+      removeSpeakingBars();
+      return false;
+    }
+
+    if (!st.speaking) { speakStarted = now(); speakMisses = 0; st.speakingConfirmed = false; }
+    st.speaking = true;
+    if (opts.confirmed) st.speakingConfirmed = true;
+
     var dock = document.querySelector('.chat__dock');
-    var bar  = dock && dock.querySelector('.chat__speaking');
-    if (!dock) return;
-    if (!on) { if (bar && bar.parentNode) bar.parentNode.removeChild(bar); return; }
-    if (bar) return;
-    var wrap = document.createElement('div');
-    wrap.innerHTML = speakingBarHtml();
-    dock.insertBefore(wrap.firstChild, dock.firstChild);
+    if (dock) {
+      var bar = dock.querySelector('.chat__speaking');
+      if (!bar) {
+        removeSpeakingBars();               // never two
+        var wrap = document.createElement('div');
+        wrap.innerHTML = speakingBarHtml(st);
+        dock.insertBefore(wrap.firstChild, dock.firstChild);
+      } else {
+        // Update in place so the Stop button keeps its identity and its focus.
+        var label = bar.querySelector('.chat__speaking-label');
+        if (st.speakingConfirmed) bar.className = 'chat__speaking is-live';
+        else bar.className = 'chat__speaking';
+        if (label) {
+          label.textContent = st.speakingConfirmed
+            ? VKB.copy.speaking : VKB.copy.speakingWaiting;
+        }
+      }
+    }
+    armSpeakWatch();
+    return true;
+  };
+
+  // The Stop link's whole job, in the right order, in one call.
+  //
+  // `data-act="stopSpeaking"` is handled by app.js, and app.js used to ask the
+  // speech engine to stop FIRST and clear the UI second. That is the wrong way
+  // round: it makes a visible, promised, one-tap control conditional on a
+  // third-party API behaving, and the bug being fixed here is precisely a
+  // speech engine that never behaves. The UI goes first and unconditionally;
+  // the engine is then told, inside a try/catch, and whatever it does or does
+  // not do with that is no longer the person's problem.
+  //
+  // app.js's handler becomes one line:
+  //     stopSpeaking: function () { VKB.screens.stopSpeaking(); }
+  VKB.screens.stopSpeaking = function () {
+    VKB.screens.setSpeaking(false);                 // visible, immediate, always
+    try {
+      if (VKB.voice && VKB.voice.stopSpeaking) VKB.voice.stopSpeaking();
+    } catch (e) { /* an engine that cannot stop is not a reason to leave the bar */ }
+    // Belt and braces: a stopSpeaking() that throws part-way could in principle
+    // have left something behind. Nothing on screen outlives the tap.
+    removeSpeakingBars();
+  };
+
+  // Read-only, for app.js and voice.js. Never reads the DOM.
+  VKB.screens.isSpeaking = function () {
+    return !!(VKB.state && VKB.state.speaking);
   };
 
   // The live dictation transcript. voice.js calls this from onInterim and
@@ -8925,6 +9882,8 @@ VKB.render = VKB.render || {};
       shareCopied: false,
       confirmReset: false,
       speaking: false,
+      speakingConfirmed: false,  // audio has actually been heard to start, as
+                                 // opposed to having merely been asked for
       speechTurn: false,       // this turn's question was spoken, not typed
       lastCorrections: [],
       shareUrl: location.href.split('#')[0],
@@ -9082,12 +10041,23 @@ VKB.render = VKB.render || {};
       revealTurn(m, function () {
         // A question asked out loud is answered out loud, whether or not the
         // speaker toggle is on. The toggle is the setting for typed questions.
-        if (fromSpeech) {
-          VKB.screens.setSpeaking(true);
-          VKB.voice.speak(spokenForm(m), { force: true });
-        } else if (VKB.state.speakEnabled) {
-          VKB.screens.setSpeaking(true);
-          VKB.voice.speak(spokenForm(m));
+        if (!fromSpeech && !VKB.state.speakEnabled) return;
+        // setSpeaking(true) means "we have ASKED for speech", not "audio is
+        // playing": the bar says so in words and does not animate until a real
+        // onstart confirms it. If speak() refuses outright, withdraw the claim
+        // at once rather than making the person wait on a watchdog. Lighting
+        // this and never withdrawing it is what left "Reading the answer
+        // aloud" on screen forever on a browser that never made a sound.
+        VKB.screens.setSpeaking(true);
+        var r;
+        try {
+          r = fromSpeech ? VKB.voice.speak(spokenForm(m), { force: true })
+                         : VKB.voice.speak(spokenForm(m));
+        } catch (e) { VKB.screens.setSpeaking(false); return; }
+        if (r === false) { VKB.screens.setSpeaking(false); return; }
+        if (r && typeof r.then === 'function') {
+          r.then(function (ok) { if (ok === false) VKB.screens.setSpeaking(false); },
+                 function ()   { VKB.screens.setSpeaking(false); });
         }
       });
     }, 550 + Math.round(Math.random() * 350));
@@ -9113,6 +10083,9 @@ VKB.render = VKB.render || {};
     if (VKB.state.awaiting) return;
     text = (text || '').trim();
     if (!text) return;
+    // A new question supersedes the answer being read aloud. Without this the
+    // bar outlives the turn it belongs to, which is half of what he saw.
+    VKB.screens.stopSpeaking();
     var fromSpeech = !!(opts && opts.fromSpeech) || !!VKB.state.speechTurn;
     VKB.state.speechTurn = false;
     // The composer empties on send and stays empty: state.draft is the only
@@ -9125,6 +10098,10 @@ VKB.render = VKB.render || {};
   /* --------------------------------------------------------------- voice */
 
   function startDictation() {
+    // ONE AUDIO STATE AT A TIME. The speaking bar and the recording panel were
+    // on his screen together, both claiming the microphone. Dictation wins, and
+    // the tap should stop the AUDIO, not just hide the sign of it.
+    VKB.screens.stopSpeaking();
     VKB.state.dictating = true;
     // Whatever is already in the composer stays in VKB.state.draft untouched —
     // it is the only copy, so there is nothing to read out of the DOM first.
@@ -9251,9 +10228,13 @@ VKB.render = VKB.render || {};
     cancelDictation: function () { cancelDictation(); },
 
     speak: function () {
+      // iOS refuses speechSynthesis outside a user gesture, and refuses it
+      // SILENTLY -- no onstart, no onerror. Unlocking the engine here, inside
+      // the tap, is what lets the answer be spoken later on.
+      if (VKB.voice.prime) VKB.voice.prime();
       VKB.state.speakEnabled = !VKB.state.speakEnabled;
       VKB.voice.setSpeakEnabled(VKB.state.speakEnabled);
-      if (!VKB.state.speakEnabled) VKB.voice.stopSpeaking();
+      if (!VKB.state.speakEnabled) VKB.screens.stopSpeaking();
       rerender();
     },
 
@@ -9301,7 +10282,7 @@ VKB.render = VKB.render || {};
 
     reset: function () {
       VKB.voice.cancel();
-      VKB.voice.stopSpeaking();
+      VKB.screens.stopSpeaking();
       cancelReveal();
       if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
       VKB.state = initialState();
@@ -9322,10 +10303,11 @@ VKB.render = VKB.render || {};
 
     jumpLatest: function () { VKB.screens.scrollToLatest(); },
 
-    stopSpeaking: function () {
-      if (VKB.voice && VKB.voice.stopSpeaking) VKB.voice.stopSpeaking();
-      VKB.screens.setSpeaking(false);
-    },
+    // UI first, engine second. screens.js clears the bar and the state
+    // unconditionally and only then tells voice.js, inside a try/catch, so a
+    // control the person can see is never held hostage by a speech engine
+    // that reports nothing back.
+    stopSpeaking: function () { VKB.screens.stopSpeaking(); },
 
     noop: function () {}
   };
@@ -9447,13 +10429,13 @@ VKB.render = VKB.render || {};
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) {
         VKB.voice.cancel();
-        VKB.voice.stopSpeaking();
+        VKB.screens.stopSpeaking();
         if (VKB.state.dictating) { VKB.state.dictating = false; rerender(); }
       }
     });
     window.addEventListener('pagehide', function () {
       VKB.voice.cancel();
-      VKB.voice.stopSpeaking();
+      VKB.screens.stopSpeaking();
     });
 
     greet();
